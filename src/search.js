@@ -20,19 +20,12 @@ class MemorySearch {
   async init() {
     if (this.initialized) return;
     
-    try {
-      console.log('Loading embedding model...', this.embeddingModel);
-      this.embedder = await pipeline('feature-extraction', this.embeddingModel);
-      this.initialized = true;
-      console.log('✅ Model loaded');
-    } catch (error) {
-      console.log('⚠️  Failed to load model, trying fallback...');
-      // Fallback to a smaller, more reliable model
-      this.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
-      this.embedder = await pipeline('feature-extraction', this.embeddingModel);
-      this.initialized = true;
-      console.log('✅ Fallback model loaded');
-    }
+    // Use the most reliable model directly
+    this.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
+    console.log('Loading embedding model...');
+    this.embedder = await pipeline('feature-extraction', this.embeddingModel);
+    this.initialized = true;
+    console.log('✅ Model loaded');
   }
 
   async loadOrBuildIndex() {
@@ -90,13 +83,22 @@ class MemorySearch {
         // Generate embedding (512 dimensions for MiniLM-L6-v2)
         const embedding = await this.embedder(content, { pooling: 'mean' });
         
+        // Extract a content snippet (first 500 chars, clean)
+        const snippetLines = content.split('\n').slice(1, 6); // Skip title, get next few lines
+        const cleanSnippet = snippetLines
+          .map(line => line.replace(/^#+\s*/, '').trim())
+          .filter(line => line.length > 10)
+          .join(' ')
+          .substring(0, 400);
+        
         this.embeddings.set(relativePath, {
           embedding: Array.from(embedding.data || embedding),
           metadata: {
-            title: title.substring(0, 100),
+            title: title.replace(/^#+\s*/, '').trim().substring(0, 100),
             size: content.length,
             modified: new Date().toISOString(),
-            path: relativePath
+            path: relativePath,
+            snippet: cleanSnippet || content.substring(0, 300).replace(/\n/g, ' ')
           }
         });
       } catch (error) {
@@ -183,13 +185,9 @@ class MemorySearch {
       console.log(chalk.gray(`Size: ${Math.round(result.metadata.size / 1024)}KB`));
       console.log(chalk.gray(`Last modified: ${new Date(result.metadata.modified).toLocaleDateString()}`));
       
-      // Show snippet of content if available
-      try {
-        const content = await fs.readFile(path.join(this.workspacePath, result.path), 'utf8');
-        const snippet = content.substring(0, 300).replace(/\n/g, ' ');
-        console.log(chalk.white(`Snippet: ${snippet}...`));
-      } catch (e) {
-        // Content not available
+      // Show stored snippet
+      if (result.metadata.snippet) {
+        console.log(chalk.white(`Snippet: ${result.metadata.snippet.substring(0, 200)}...`));
       }
       
       console.log('='.repeat(60));

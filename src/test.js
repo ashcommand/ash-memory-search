@@ -19,22 +19,18 @@ async function main() {
     
     if (results.length > 0) {
       console.log(`✅ Found ${results.length} results`);
-      for (const result of results) {
-        console.log(`  - ${result.path} (${(result.similarity * 100).toFixed(1)}% match)`);
-      }
+      await search.renderResults(results);
     } else {
       console.log('⚠️  No results found - might need to build index first');
     }
     
     // Test 2: Query about GitHub
-    console.log('\nTest 2: Querying for "GitHub account"');
+    console.log('\n\nTest 2: Querying for "GitHub account"');
     const results2 = await search.query('github account created', 3);
     
     if (results2.length > 0) {
       console.log(`✅ Found ${results2.length} results`);
-      for (const result of results2) {
-        console.log(`  - ${result.path} (${(result.similarity * 100).toFixed(1)}% match)`);
-      }
+      await search.renderResults(results2);
     } else {
       console.log('⚠️  No results found - might need to build index first');
     }
