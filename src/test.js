@@ -35,6 +35,17 @@ async function main() {
       console.log('⚠️  No results found - might need to build index first');
     }
     
+    // Test 3: Broader query - testing lower threshold
+    console.log('\n\nTest 3: Querying for "what did we build today" (broader query)');
+    const results3 = await search.query('what did we build today', 3);
+    
+    if (results3.length > 0) {
+      console.log(`✅ Found ${results3.length} results (threshold working!)`);
+      await search.renderResults(results3);
+    } else {
+      console.log('⚠️  No results found - threshold may need further adjustment');
+    }
+    
     console.log('\n✅ Tests completed');
   } catch (error) {
     console.error('\n❌ Test failed:', error);

@@ -153,33 +153,60 @@ class MemorySearch {
     const queryVector = Array.from(queryEmbedding.data || queryEmbedding);
     
     // Calculate similarity for all documents
-    const results = [];
+    const allCandidates = [];
     for (const [path, data] of this.embeddings) {
       const similarity = this.cosineSimilarity(queryVector, data.embedding);
-      if (similarity > 0.3) { // Threshold filter
-        results.push({
-          path,
-          similarity,
-          metadata: data.metadata
-        });
-      }
+      allCandidates.push({
+        path,
+        similarity,
+        metadata: data.metadata
+      });
     }
     
     // Sort by similarity (descending)
-    results.sort((a, b) => b.similarity - a.similarity);
+    allCandidates.sort((a, b) => b.similarity - a.similarity);
     
-    return results.slice(0, limit);
+    // Get high-confidence results (> 15% similarity)
+    const highConfidence = allCandidates.filter(r => r.similarity > 0.15);
+    
+    if (highConfidence.length > 0) {
+      return highConfidence.slice(0, limit);
+    }
+    
+    // Fallback: return top weak matches (> 5% similarity) with flag
+    const weakMatches = allCandidates.filter(r => r.similarity > 0.05);
+    if (weakMatches.length > 0) {
+      console.log(`⚠️  Low confidence matches - consider refining your query`);
+      return weakMatches.slice(0, Math.min(2, limit)).map(r => ({
+        ...r,
+        _isWeakMatch: true
+      }));
+    }
+    
+    // No matches at all
+    return [];
   }
 
   async renderResults(results) {
     const { default: chalk } = await import('chalk');
     
+    const hasWeakMatches = results.some(r => r._isWeakMatch);
+    const title = hasWeakMatches ? 
+      `Found ${results.length} weak matches (low confidence)` : 
+      `Found ${results.length} relevant documents`;
+    
     console.log(chalk.bold(`\n${'='.repeat(60)}`));
-    console.log(chalk.bold(`Found ${results.length} relevant documents`));
+    console.log(chalk.bold(title));
     console.log(chalk.bold('='.repeat(60)));
     
     for (const [i, result] of results.entries()) {
-      console.log(chalk.cyan(`\n[${i + 1}] ${result.metadata.title}`));
+      const prefix = result._isWeakMatch ? chalk.yellow('⚠') : chalk.cyan(`[${i + 1}]`);
+      console.log(`${prefix} ${result.metadata.title}`);
+      
+      if (result._isWeakMatch) {
+        console.log(chalk.yellow('  Low confidence match - try refining your query'));
+      }
+      
       console.log(chalk.gray(`Path: ${result.path}`));
       console.log(chalk.gray(`Similarity: ${(result.similarity * 100).toFixed(1)}%`));
       console.log(chalk.gray(`Size: ${Math.round(result.metadata.size / 1024)}KB`));
