@@ -1,10 +1,10 @@
 /**
  * Memory Search Engine - Core Module
- * Uses transformer embeddings for semantic search
+ * Uses transformer embeddings for semantic search with SQLite backend
  */
 
 const { pipeline } = require('@xenova/transformers');
-const fs = require('fs').promises;
+const { SqliteStorage } = require('./storage');
 const path = require('path');
 
 // Global model cache to persist across instances
@@ -17,14 +17,20 @@ const MODEL_CACHE = {
 class MemorySearch {
   constructor(options = {}) {
     this.workspacePath = options.workspacePath || path.join(process.env.HOME, '.openclaw', 'workspace');
-    this.indexPath = options.indexPath || path.join(this.workspacePath, 'ash-memory-search', 'index.json');
+    
+    // SQLite storage instead of JSON file
+    const dbPath = path.join(this.workspacePath, 'ash-memory-search', 'index.db');
+    this.storage = new SqliteStorage(dbPath);
+    
     this.embeddingModel = options.embeddingModel || 'sentence-transformers/all-MiniLM-L6-v2';
     this.embedder = null;
-    this.embeddings = new Map(); // memory path -> {embedding, metadata}
     this.initialized = false;
   }
 
   async init() {
+    // Initialize SQLite storage first
+    await this.storage.init();
+    
     // Use global model cache to persist across queries
     if (MODEL_CACHE.initialized) {
       this.embedder = MODEL_CACHE.embedder;
@@ -49,13 +55,12 @@ class MemorySearch {
   }
 
   async loadOrBuildIndex() {
-    try {
-      const indexData = await fs.readFile(this.indexPath, 'utf8');
-      const data = JSON.parse(indexData);
-      this.embeddings = new Map(Object.entries(data.embeddings));
-      console.log(`✅ Loaded index with ${this.embeddings.size} documents`);
+    const docCount = this.storage.getDocumentCount();
+    
+    if (docCount > 0) {
+      console.log(`✅ Loaded index with ${docCount} documents`);
       return true;
-    } catch (e) {
+    } else {
       console.log('Index not found, building...');
       await this.buildIndex();
       return false;
@@ -72,6 +77,7 @@ class MemorySearch {
     
     // Add main MEMORY.md if exists
     try {
+      const fs = require('fs').promises;
       await fs.access(memoryMain);
       filesToIndex.push(memoryMain);
     } catch (e) {
@@ -80,6 +86,7 @@ class MemorySearch {
     
     // Add memory directory files
     try {
+      const fs = require('fs').promises;
       const memoryFiles = await fs.readdir(memoryDir);
       const mdFiles = memoryFiles.filter(f => f.endsWith('.md'));
       filesToIndex.push(...mdFiles.map(f => path.join(memoryDir, f)));
@@ -89,76 +96,54 @@ class MemorySearch {
     
     console.log(`Found ${filesToIndex.length} files to index`);
     
-    for (const filePath of filesToIndex) {
-      try {
-        const content = await fs.readFile(filePath, 'utf8');
-        const relativePath = path.relative(this.workspacePath, filePath);
-        
-        // Extract title/first line for metadata
-        const lines = content.split('\n');
-        const title = lines.find(l => l.trim()) || relativePath;
-        
-        console.log(`  Indexing: ${relativePath} (${Math.round(content.length/1024)}KB)`);
-        
-        // Generate embedding (512 dimensions for MiniLM-L6-v2)
-        const embedding = await this.embedder(content, { pooling: 'mean' });
-        
-        // Extract a content snippet (first 500 chars, clean)
-        const snippetLines = content.split('\n').slice(1, 6); // Skip title, get next few lines
-        const cleanSnippet = snippetLines
-          .map(line => line.replace(/^#+\s*/, '').trim())
-          .filter(line => line.length > 10)
-          .join(' ')
-          .substring(0, 400);
-        
-        this.embeddings.set(relativePath, {
-          embedding: Array.from(embedding.data || embedding),
-          metadata: {
-            title: title.replace(/^#+\s*/, '').trim().substring(0, 100),
-            size: content.length,
-            modified: new Date().toISOString(),
-            path: relativePath,
-            snippet: cleanSnippet || content.substring(0, 300).replace(/\n/g, ' ')
-          }
-        });
-      } catch (error) {
-        console.error(`  Error indexing ${filePath}:`, error.message);
-      }
+    // Clear existing index
+    await this.storage.clearAll();
+    
+    // Process files in batches for better performance
+    const batchSize = 10;
+    for (let i = 0; i < filesToIndex.length; i += batchSize) {
+      const batch = filesToIndex.slice(i, i + batchSize);
+      await Promise.all(batch.map(filePath => this._indexFile(filePath)));
     }
     
-    await this.saveIndex();
-    console.log(`✅ Built index with ${this.embeddings.size} documents`);
+    await this.storage.vacuum();
+    console.log(`✅ Built index with ${this.storage.getDocumentCount()} documents`);
   }
 
-  async saveIndex() {
-    const indexData = {
-      version: '1.0',
-      model: this.embeddingModel,
-      builtAt: new Date().toISOString(),
-      embeddings: Object.fromEntries(this.embeddings)
-    };
-    
-    await fs.mkdir(path.dirname(this.indexPath), { recursive: true });
-    await fs.writeFile(this.indexPath, JSON.stringify(indexData, null, 2));
-    console.log(`Index saved to ${this.indexPath}`);
-  }
-
-  cosineSimilarity(a, b) {
-    if (a.length !== b.length) {
-      throw new Error(`Vector dimensions mismatch: ${a.length} vs ${b.length}`);
+  async _indexFile(filePath) {
+    try {
+      const fs = require('fs').promises;
+      const content = await fs.readFile(filePath, 'utf8');
+      const relativePath = path.relative(this.workspacePath, filePath);
+      
+      // Extract title/first line for metadata
+      const lines = content.split('\n');
+      const title = lines.find(l => l.trim()) || relativePath;
+      
+      console.log(`  Indexing: ${relativePath} (${Math.round(content.length/1024)}KB)`);
+      
+      // Generate embedding (512 dimensions for MiniLM-L6-v2)
+      const embedding = await this.embedder(content, { pooling: 'mean' });
+      
+      // Extract a content snippet (first 500 chars, clean)
+      const snippetLines = content.split('\n').slice(1, 6); // Skip title, get next few lines
+      const cleanSnippet = snippetLines
+        .map(line => line.replace(/^#+\s*/, '').trim())
+        .filter(line => line.length > 10)
+        .join(' ')
+        .substring(0, 400);
+      
+      await this.storage.insertDocument({
+        path: relativePath,
+        title: title.replace(/^#+\s*/, '').trim().substring(0, 100),
+        snippet: cleanSnippet || content.substring(0, 300).replace(/\n/g, ' '),
+        size: content.length,
+        modified: new Date().toISOString(),
+        embedding: Array.from(embedding.data || embedding)
+      });
+    } catch (error) {
+      console.error(`  Error indexing ${filePath}:`, error.message);
     }
-    
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-    
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-    
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   parseDateFromPath(filePath) {
@@ -200,7 +185,12 @@ class MemorySearch {
       if (endDate) dateRange.push(`to ${endDate.toLocaleDateString()}`);
       console.log(`Date filter: ${dateRange.join(' ')}`);
     }
-    console.log(`Scanning ${this.embeddings.size} documents...`);
+    
+    const docCount = this.storage.getDocumentCount();
+    console.log(`Scanning ${docCount} documents...`);
+    
+    // Get all documents from SQLite
+    const documents = await this.storage.getAllDocuments();
     
     // Generate query embedding
     const queryEmbedding = await this.embedder(queryText, { pooling: 'mean' });
@@ -208,12 +198,12 @@ class MemorySearch {
     
     // Calculate similarity for all documents
     const allCandidates = [];
-    for (const [path, data] of this.embeddings) {
-      const similarity = this.cosineSimilarity(queryVector, data.embedding);
+    for (const doc of documents) {
+      const similarity = this.cosineSimilarity(queryVector, doc.embedding);
       allCandidates.push({
-        path,
+        path: doc.path,
         similarity,
-        metadata: data.metadata
+        metadata: doc.metadata
       });
     }
     
@@ -242,6 +232,24 @@ class MemorySearch {
     
     // No matches at all
     return [];
+  }
+
+  cosineSimilarity(a, b) {
+    if (a.length !== b.length) {
+      throw new Error(`Vector dimensions mismatch: ${a.length} vs ${b.length}`);
+    }
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   async renderResults(results) {
@@ -276,6 +284,10 @@ class MemorySearch {
       
       console.log('='.repeat(60));
     }
+  }
+
+  async close() {
+    await this.storage.close();
   }
 }
 

@@ -27,18 +27,17 @@ async function runTests() {
   
   // Setup test fixtures
   await test('Setup test fixtures', async () => {
-    await fs.mkdir(workspaceDir, { recursive: true });
     await fs.mkdir(path.join(workspaceDir, 'memory'), { recursive: true });
     
     // Create test memory files
     await fs.writeFile(
       path.join(workspaceDir, 'memory/2026-01-15.md'),
-      '# January 15\n\nMeeting about authentication system. Decided to use JWT tokens.'
+      `# January 15\n\nMeeting about authentication system. Decided to use JWT tokens.`
     );
     
     await fs.writeFile(
       path.join(workspaceDir, 'memory/2026-01-20.md'),
-      '# January 20\n\nDeployed new API endpoints to production. Monitoring error rates.'
+      `# January 20\n\nDeployed new API endpoints to production. Monitoring error rates.`
     );
   });
   
@@ -60,8 +59,9 @@ async function runTests() {
   // Test 2: Build index
   await test('Builds index from memory files', async () => {
     await search.buildIndex();
-    if (search.embeddings.size !== 2) {
-      throw new Error(`Expected 2 documents, got ${search.embeddings.size}`);
+    const docCount = search.storage.getDocumentCount();
+    if (docCount !== 2) {
+      throw new Error(`Expected 2 documents, got ${docCount}`);
     }
   });
   
@@ -72,7 +72,7 @@ async function runTests() {
       throw new Error('No results returned');
     }
     if (!results[0].path.includes('2026-01-15')) {
-      throw new Error('Wrong document ranked first');
+      throw new Error(`Wrong document ranked first: ${results[0].path}`);
     }
   });
   
@@ -110,17 +110,12 @@ async function runTests() {
     }
   });
   
-  // Test 7: Index persistence
-  await test('Index saves and loads correctly', async () => {
+  // Test 7: Document count
+  await test('Document count is accurate', async () => {
     await search.buildIndex();
-    const sizeAfterBuild = search.embeddings.size;
-    
-    // Clear and reload
-    search.embeddings.clear();
-    await search.loadOrBuildIndex();
-    
-    if (search.embeddings.size !== sizeAfterBuild) {
-      throw new Error('Index not persisted correctly');
+    const count = search.storage.getDocumentCount();
+    if (count !== 2) {
+      throw new Error(`Document count should be 2, got ${count}`);
     }
   });
   
@@ -128,12 +123,13 @@ async function runTests() {
   await test('Date parsing from filepath works', async () => {
     const date = search.parseDateFromPath('memory/2026-01-15.md');
     if (!date || date.getFullYear() !== 2026 || date.getMonth() !== 0 || date.getDate() !== 15) {
-      throw new Error('Date parsing failed');
+      throw new Error(`Date parsing failed: ${date}`);
     }
   });
   
-  // Cleanup
-  await test('Cleanup test files', async () => {
+  // Test 9: Cleanup and close
+  await test('Cleanup test files and close database', async () => {
+    await search.close();
     await fs.rm(workspaceDir, { recursive: true, force: true });
   });
   

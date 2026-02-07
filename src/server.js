@@ -1,8 +1,6 @@
-#!/usr/bin/env node
-
 /**
  * API Server for Memory Search
- * HTTP endpoint for integration
+ * HTTP endpoint for integration with SQLite backend
  */
 
 const http = require('http');
@@ -15,6 +13,8 @@ class MemorySearchServer {
     this.search = new MemorySearch();
     this.server = null;
     this.initialized = false;
+    this.requestQueue = []; // Simple queue for serializing write operations
+    this.isProcessingQueue = false;
   }
 
   async initialize() {
@@ -44,68 +44,108 @@ class MemorySearchServer {
 
     // Health check
     if (pathname === '/health' && method === 'GET') {
+      const docCount = this.search.storage.getDocumentCount();
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', documents: this.search.embeddings.size }));
+      res.end(JSON.stringify({ 
+        status: 'ok', 
+        documents: docCount,
+        initialized: this.initialized 
+      }));
       return;
     }
 
     // Search endpoint
     if (pathname === '/search' && method === 'POST') {
-      let body = '';
-      req.on('data', chunk => { body += chunk.toString(); });
-      req.on('end', async () => {
-        try {
-          const params = JSON.parse(body);
-          const query = params.query;
-          const limit = params.limit || 5;
-          
-          if (!query) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Missing query parameter' }));
-            return;
-          }
-
-          // Build date filter if provided
-          let dateFilter = {};
-          if (params.startDate) {
-            dateFilter.startDate = new Date(params.startDate);
-          }
-          if (params.endDate) {
-            dateFilter.endDate = new Date(params.endDate);
-          }
-
-          const results = await this.search.query(query, limit, dateFilter);
-          
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            query,
-            resultsCount: results.length,
-            results
-          }, null, 2));
-        } catch (error) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: error.message }));
-        }
-      });
+      await this._handleSearch(req, res);
       return;
     }
 
     // Rebuild index endpoint
     if (pathname === '/reindex' && method === 'POST') {
-      try {
-        await this.search.buildIndex();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, documents: this.search.embeddings.size }));
-      } catch (error) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: error.message }));
-      }
+      await this._handleReindex(req, res);
       return;
     }
 
     // 404
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
+  }
+
+  async _handleSearch(req, res) {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', async () => {
+      try {
+        const params = JSON.parse(body);
+        const query = params.query;
+        const limit = params.limit || 5;
+        
+        if (!query) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing query parameter' }));
+          return;
+        }
+
+        // Build date filter if provided
+        let dateFilter = {};
+        if (params.startDate) {
+          dateFilter.startDate = new Date(params.startDate);
+        }
+        if (params.endDate) {
+          dateFilter.endDate = new Date(params.endDate);
+        }
+
+        const results = await this.search.query(query, limit, dateFilter);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          query,
+          resultsCount: results.length,
+          results
+        }, null, 2));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error.message }));
+      }
+    });
+  }
+
+  async _handleReindex(req, res) {
+    // Queue reindex operation to serialize writes
+    this.requestQueue.push({
+      type: 'reindex',
+      req,
+      res
+    });
+    this._processQueue();
+  }
+
+  async _processQueue() {
+    if (this.isProcessingQueue || this.requestQueue.length === 0) return;
+    
+    this.isProcessingQueue = true;
+    
+    while (this.requestQueue.length > 0) {
+      const job = this.requestQueue.shift();
+      
+      try {
+        if (job.type === 'reindex') {
+          console.log('Starting reindex operation...');
+          await this.search.buildIndex();
+          
+          job.res.writeHead(200, { 'Content-Type': 'application/json' });
+          job.res.end(JSON.stringify({ 
+            success: true, 
+            documents: this.search.storage.getDocumentCount() 
+          }));
+        }
+      } catch (error) {
+        job.res.writeHead(500, { 'Content-Type': 'application/json' });
+        job.res.end(JSON.stringify({ error: error.message }));
+      }
+    }
+    
+    this.isProcessingQueue = false;
   }
 
   async start() {
@@ -118,7 +158,7 @@ class MemorySearchServer {
         console.log(`🚀 Memory search server listening on http://localhost:${this.port}`);
         console.log(`Endpoints:`);
         console.log(`  POST /search - Query search engine`);
-        console.log(`  POST /reindex - Rebuild index`);
+        console.log(`  POST /reindex - Rebuild index (serialized)`);
         console.log(`  GET  /health - Health check`);
         resolve();
       });

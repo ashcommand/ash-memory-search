@@ -2,13 +2,52 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
 
 jobs:
   test:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run unit tests
+      run: npm test
+      
+    - name: Run benchmarks
+      run: npm run benchmark
+      
+    - name: Check for security vulnerabilities
+      run: npm audit --audit-level=moderate
+      
+    - name: Verify no secrets in code
+      run: |
+        if grep -r "ghp_\|sk-" . --exclude-dir=node_modules --exclude-dir=.git --exclude="*.log"; then
+          echo "⚠️  Potential secrets found!"
+          exit 1
+        fi
+        echo "✅ No secrets detected"
+
+  build:
     runs-on: ubuntu-latest
+    needs: test
     
     steps:
     - name: Checkout code
@@ -23,26 +62,15 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
-    - name: Build index
-      run: npm run index
-      env:
-        # GitHub Actions have limited memory files to test with
-        # In production, this would access user's ~/.openclaw/workspace
-        NODE_ENV: ci
-        
-    - name: Run tests
-      run: npm test
-      
-    - name: Upload coverage
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: index-artifact
-        path: index.json
-        retention-days: 7
-        
-  security-audit:
+    - name: Build and test
+      run: |
+        npm run index
+        npm test
+
+  publish:
     runs-on: ubuntu-latest
+    needs: [test, build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
     - name: Checkout code
@@ -52,17 +80,18 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'npm'
+        registry-url: 'https://registry.npmjs.org'
         
     - name: Install dependencies
       run: npm ci
       
-    - name: Run npm audit
-      run: npm audit --audit-level=moderate
-      
-    - name: Check for secrets
+    - name: Publish to NPM (if version changed)
       run: |
-        if grep -r "GITHUB_TOKEN\|API_KEY\|SECRET" . --exclude-dir=node_modules --exclude-dir=.git; then
-          echo "Potential secrets found!";
-          exit 1;
+        if npm view ash-memory-search version !== $(node -p "require('./package.json').version"); then
+          npm publish
+        else
+          echo "Version unchanged, skipping publish"
         fi
-        echo "No secrets detected"
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

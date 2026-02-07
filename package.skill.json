@@ -1,0 +1,87 @@
+{
+  "name": "ash-memory-search",
+  "version": "1.0.0",
+  "description": "AI-powered semantic search for OpenClaw memory files",
+  "keywords": ["openclaw", "memory", "search", "semantic", "ai"],
+  "author": "ashcommand",
+  "license": "MIT",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo 'No build step needed'",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "node ../../node_modules/tap/bin/run.js unit/*.test.js",
+    "test:integration": "node tests/integration.test.js"
+  },
+  "dependencies": {
+    "ash-memory-search": "^1.0.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ashcommand/ash-memory-search.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ashcommand/ash-memory-search/issues"
+  },
+  "homepage": "https://github.com/ashcommand/ash-memory-search#readme",
+  "oclaw_skills": {
+    "id": "ash-memory-search",
+    "name": "Memory Search",
+    "description": "AI-powered semantic search for your memory files",
+    "version": "1.0.0",
+    "author": "ashcommand",
+    "repository": "https://github.com/ashcommand/ash-memory-search",
+    "keywords": ["memory", "search", "semantic", "ai", "openclaw"],
+    "categories": ["productivity", "ai", "search"],
+    "permissions": [],
+    "commands": {
+      "memory-search": {
+        "description": "Search memory files using semantic search",
+        "usage": "memory-search <query> [options]",
+        "examples": [
+          "memory-search 'what did I decide about auth'",
+          "memory-search 'gmail account' --limit 3",
+          "memory-search 'deployment' --start 2026-01-01"
+        ]
+      },
+      "memory-search:index": {
+        "description": "Build or rebuild the search index",
+        "usage": "memory-search:index"
+      },
+      "memory-search:server": {
+        "description": "Start the HTTP API server",
+        "usage": "memory-search:server [--port PORT]"
+      }
+    },
+    "config_schema": {
+      "type": "object",
+      "properties": {
+        "workspacePath": {
+          "type": "string",
+          "description": "Path to OpenClaw workspace",
+          "default": "~/.openclaw/workspace"
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Similarity threshold (0.0 to 1.0)",
+          "default": 0.15,
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "model": {
+          "type": "string",
+          "description": "Embedding model to use",
+          "default": "Xenova/all-MiniLM-L6-v2",
+          "enum": [
+            "Xenova/all-MiniLM-L6-v2"
+          ]
+        }
+      }
+    }
+  }
+}

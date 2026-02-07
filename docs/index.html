@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ash Memory Search - AI-Powered Memory Search</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0ff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* Header */
+        header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1.5rem 0;
+            background: rgba(15, 12, 41, 0.9);
+            backdrop-filter: blur(20px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(94, 92, 230, 0.2);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #5e5ce6;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: #a0a0ff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #5e5ce6;
+        }
+
+        .cta-button {
+            background: linear-gradient(90deg, #5e5ce6, #a05ce6);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(94, 92, 230, 0.3);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 12rem 0 8rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(94, 92, 230, 0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            font-weight: 900;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(90deg, #5e5ce6, #a05ce6, #5e5ce6);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradient 3s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: #a0a0ff;
+            margin-bottom: 3rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 4rem;
+        }
+
+        .demo-section {
+            background: rgba(15, 12, 41, 0.6);
+            border: 1px solid rgba(94, 92, 230, 0.2);
+            border-radius: 16px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .demo-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            color: #5e5ce6;
+            font-weight: 600;
+        }
+
+        .demo-terminal {
+            background: #0a0a1a;
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'Fira Code', 'Monaco', 'Cascadia Code', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.1);
+            overflow-x: auto;
+        }
+
+        .demo-input {
+            color: #00ff88;
+        }
+
+        .demo-output {
+            color: #a0a0ff;
+        }
+
+        .demo-highlight {
+            color: #5e5ce6;
+            font-weight: bold;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 6rem 0;
+            background: rgba(15, 12, 41, 0.3);
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 4rem;
+            background: linear-gradient(90deg, #5e5ce6, #a05ce6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: rgba(15, 12, 41, 0.6);
+            border: 1px solid rgba(94, 92, 230, 0.2);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(94, 92, 230, 0.1);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            color: #e0e0ff;
+        }
+
+        .feature-description {
+            color: #a0a0ff;
+            line-height: 1.6;
+        }
+
+        /* Architecture Section */
+        .architecture {
+            padding: 6rem 0;
+        }
+
+        .architecture-diagram {
+            background: rgba(15, 12, 41, 0.6);
+            border: 1px solid rgba(94, 92, 230, 0.2);
+            border-radius: 16px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .diagram-code {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #00ff88;
+            line-height: 1.6;
+            overflow-x: auto;
+        }
+
+        /* CTA Section */
+        .cta {
+            padding: 6rem 0;
+            background: linear-gradient(135deg, rgba(94, 92, 230, 0.1), rgba(160, 92, 230, 0.1));
+            text-align: center;
+        }
+
+        .cta h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            color: #e0e0ff;
+        }
+
+        .cta p {
+            font-size: 1.125rem;
+            color: #a0a0ff;
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .download-button {
+            background: rgba(15, 12, 41, 0.8);
+            border: 1px solid rgba(94, 92, 230, 0.3);
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            text-decoration: none;
+            color: #e0e0ff;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .download-button:hover {
+            border-color: #5e5ce6;
+            transform: translateY(-2px);
+        }
+
+        /* Footer */
+        footer {
+            padding: 2rem 0;
+            background: rgba(15, 12, 41, 0.9);
+            border-top: 1px solid rgba(94, 92, 230, 0.2);
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: #a0a0ff;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: #5e5ce6;
+        }
+
+        .copyright {
+            color: #6a6a9f;
+            font-size: 0.875rem;
+        }
+
+        /* Animations */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .download-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="#" class="logo">🔍 Ash Memory Search</a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#blog">Blog</a></li>
+                <li><a href="https://github.com/ashcommand/ash-memory-search">GitHub</a></li>
+            </ul>
+            <a href="#download" class="cta-button">Get Started</a>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content container">
+            <h1>AI-Powered Memory Search</h1>
+            <p>Stop hunting through your notes. Ask questions naturally and let AI find the context you need from your OpenClaw memory files.</p>
+            
+            <div class="demo-section">
+                <div class="demo-header">💻 Try it now</div>
+                <div class="demo-terminal">
+<span class="demo-input">$</span> openclaw memory-search "gmail account"
+<span class="demo-output">
+
+<span class="demo-highlight">Searching for: "gmail account"</span>
+
+=======================================================
+Found 1 relevant documents
+=======================================================
+
+[1] 2026-02-06
+Path: memory/2026-02-06.md
+Similarity: 49.1%
+Snippet: Gmail Account Created - **Account:**
+         ashcommand620@gmail.com - **Purpose:** API access...
+=======================================================</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Why Memory Search?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🧠</div>
+                    <h3 class="feature-title">Semantic Understanding</h3>
+                    <p class="feature-description">Finds content by meaning, not just keywords. Searching "authentication decisions" finds JWT discussions even if the word "authentication" isn't used.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3 class="feature-title">Lightning Fast</h3>
+                    <p class="feature-description">Model caching means subsequent queries in under 0.1ms. Indexing runs at ~150 documents per second. You'll spend less time waiting and more time finding.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3 class="feature-title">Private & Local</h3>
+                    <p class="feature-description">No data leaves your machine. Embeddings run locally with Transformers.js. SQLite backend ensures crash safety and concurrent access.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🗓️</div>
+                    <h3 class="feature-title">Date Filtering</h3>
+                    <p class="feature-description">Search specific time periods: "show me decisions from last month" or "what happened in January 2026" with precise date ranges.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3 class="feature-title">Multiple Interfaces</h3>
+                    <p class="feature-description">CLI for interactive use, HTTP API for integrations, OpenClaw plugin for chat commands. Works however you work.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🔧</div>
+                    <h3 class="feature-title">Production Ready</h3>
+                    <p class="feature-description">SQLite with WAL mode supports concurrent readers/writers. ACID transactions prevent corruption. Battle-tested by real users.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="architecture" class="architecture">
+        <div class="container">
+            <h2 class="section-title">Architecture Deep Dive</h2>
+            <div class="architecture-diagram">
+                <div class="diagram-code">
+┌─────────────────────────────────────────────────────┐
+│                 CLI / HTTP API                     │
+│              (Multiple Interfaces)                 │
+└────────────────────┬────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│         MemorySearch Core Engine                  │
+│  • Embedding Model (Xenova/MiniLM-L6-v2)          │
+│  • Similarity Calculation (Cosine Distance)       │
+│  • Date Filtering & Threshold Logic                │
+└────────────────────┬────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│          SQLite Storage Backend                    │
+│  • Documents Table (path, embedding, metadata)    │
+│  • Changes Table (audit log & replication)        │
+│  • WAL Mode (concurrent readers + writers)        │
+└────────────────────┬────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│         Index / Workspace Files                    │
+│  • memory/2026-02-06.md                           │
+│  • memory/2026-02-07.md                           │
+│  • MEMORY.md (main memory file)                   │
+└─────────────────────────────────────────────────────┘
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="download" class="cta">
+        <div class="container">
+            <h2>Ready to Supercharge Your Memory?</h2>
+            <p>Download now and start finding context in seconds instead of minutes.</p>
+            
+            <div class="download-buttons">
+                <a href="https://github.com/ashcommand/ash-memory-search" class="download-button">
+                    <span>📦</span>
+                    <div>
+                        <strong>Source Code</strong>
+                        <small>GitHub Repository</small>
+                    </div>
+                </a>
+                
+                <a href="SKILL.md" class="download-button">
+                    <span>🔌</span>
+                    <div>
+                        <strong>OpenClaw Skill</strong>
+                        <small>Install Guide</small>
+                    </div>
+                </a>
+                
+                <a href="docs/architecture.md" class="download-button">
+                    <span>📚</span>
+                    <div>
+                        <strong>Architecture</strong>
+                        <small>Deep Dive</small>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/ashcommand/ash-memory-search">GitHub</a>
+                <a href="CONTRIBUTING.md">Contribute</a>
+                <a href="https://github.com/ashcommand/ash-memory-search/issues">Issues</a>
+                <a href="https://discord.com/invite/clawd">Discord</a>
+            </div>
+            <div class="copyright">
+                <p>© 2026 Ash Memory Search. MIT License. Built with ❤️ by ashcommand</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Add typing animation to demo terminal
+        const demoTerminal = document.querySelector('.demo-terminal');
+        const originalContent = demoTerminal.innerHTML;
+        let index = 0;
+
+        function typeDemo() {
+            if (index < originalContent.length) {
+                demoTerminal.innerHTML = originalContent.substring(0, index);
+                index++;
+                setTimeout(typeDemo, 20);
+            } else {
+                // Restart after delay
+                setTimeout(() => {
+                    index = 0;
+                    typeDemo();
+                }, 5000);
+            }
+        }
+
+        // Start typing effect when page loads
+        window.addEventListener('load', () => {
+            setTimeout(typeDemo, 1000);
+        });
+    </script>
+</body>
+</html>
