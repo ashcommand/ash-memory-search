@@ -7,6 +7,13 @@ const { pipeline } = require('@xenova/transformers');
 const fs = require('fs').promises;
 const path = require('path');
 
+// Global model cache to persist across instances
+const MODEL_CACHE = {
+  embedder: null,
+  modelName: null,
+  initialized: false
+};
+
 class MemorySearch {
   constructor(options = {}) {
     this.workspacePath = options.workspacePath || path.join(process.env.HOME, '.openclaw', 'workspace');
@@ -18,14 +25,27 @@ class MemorySearch {
   }
 
   async init() {
-    if (this.initialized) return;
+    // Use global model cache to persist across queries
+    if (MODEL_CACHE.initialized) {
+      this.embedder = MODEL_CACHE.embedder;
+      this.embeddingModel = MODEL_CACHE.modelName;
+      this.initialized = true;
+      return;
+    }
     
     // Use the most reliable model directly
     this.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
-    console.log('Loading embedding model...');
-    this.embedder = await pipeline('feature-extraction', this.embeddingModel);
+    
+    if (!MODEL_CACHE.embedder) {
+      console.log('Loading embedding model...');
+      MODEL_CACHE.embedder = await pipeline('feature-extraction', this.embeddingModel);
+      MODEL_CACHE.modelName = this.embeddingModel;
+      MODEL_CACHE.initialized = true;
+      console.log('✅ Model loaded');
+    }
+    
+    this.embedder = MODEL_CACHE.embedder;
     this.initialized = true;
-    console.log('✅ Model loaded');
   }
 
   async loadOrBuildIndex() {
@@ -141,11 +161,45 @@ class MemorySearch {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
-  async query(queryText, limit = 5) {
+  parseDateFromPath(filePath) {
+    // Extract date from YYYY-MM-DD.md format
+    const match = filePath.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1; // JS months are 0-indexed
+      const day = parseInt(match[3], 10);
+      return new Date(year, month, day);
+    }
+    return null;
+  }
+
+  filterByDate(candidates, startDate, endDate) {
+    if (!startDate && !endDate) return candidates;
+    
+    return candidates.filter(candidate => {
+      const fileDate = this.parseDateFromPath(candidate.path);
+      if (!fileDate) return true; // Keep items without parseable dates
+      
+      if (startDate && fileDate < startDate) return false;
+      if (endDate && fileDate > endDate) return false;
+      
+      return true;
+    });
+  }
+
+  async query(queryText, limit = 5, dateFilter = {}) {
     await this.init();
     await this.loadOrBuildIndex();
     
+    const { startDate, endDate } = dateFilter;
+    
     console.log(`\nSearching for: "${queryText}"`);
+    if (startDate || endDate) {
+      const dateRange = [];
+      if (startDate) dateRange.push(`from ${startDate.toLocaleDateString()}`);
+      if (endDate) dateRange.push(`to ${endDate.toLocaleDateString()}`);
+      console.log(`Date filter: ${dateRange.join(' ')}`);
+    }
     console.log(`Scanning ${this.embeddings.size} documents...`);
     
     // Generate query embedding
@@ -166,15 +220,18 @@ class MemorySearch {
     // Sort by similarity (descending)
     allCandidates.sort((a, b) => b.similarity - a.similarity);
     
+    // Apply date filtering
+    const dateFilteredCandidates = this.filterByDate(allCandidates, startDate, endDate);
+    
     // Get high-confidence results (> 15% similarity)
-    const highConfidence = allCandidates.filter(r => r.similarity > 0.15);
+    const highConfidence = dateFilteredCandidates.filter(r => r.similarity > 0.15);
     
     if (highConfidence.length > 0) {
       return highConfidence.slice(0, limit);
     }
     
     // Fallback: return top weak matches (> 5% similarity) with flag
-    const weakMatches = allCandidates.filter(r => r.similarity > 0.05);
+    const weakMatches = dateFilteredCandidates.filter(r => r.similarity > 0.05);
     if (weakMatches.length > 0) {
       console.log(`⚠️  Low confidence matches - consider refining your query`);
       return weakMatches.slice(0, Math.min(2, limit)).map(r => ({
