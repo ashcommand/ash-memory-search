@@ -55,6 +55,8 @@ class MemorySearch {
   }
 
   async loadOrBuildIndex() {
+    await this.storage.init();
+    
     const docCount = this.storage.getDocumentCount();
     
     if (docCount > 0) {

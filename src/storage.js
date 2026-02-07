@@ -116,7 +116,8 @@ class SqliteStorage {
    * Delete a document by path
    */
   async deleteDocument(filePath) {
-    const stmt = this.db.prepare('DELETE FROM documents WHERE path = ?');n    stmt.run(filePath);
+    const stmt = this.db.prepare('DELETE FROM documents WHERE path = ?');
+    stmt.run(filePath);
     
     await this._logChange('delete', { path: filePath });
   }
