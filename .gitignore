@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+.env
+*.env
+*.log
+
+# OS
+.DS_Store
+
+# Data
+index.json
+embeddings/
+
+# IDE
+.vscode/
+.idea/
