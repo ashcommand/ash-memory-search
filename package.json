@@ -1,17 +1,33 @@
 {
   "name": "ash-memory-search",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "AI-powered semantic search engine for memory files",
-  "main": "src/index.js",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "require": "./index.js",
+      "import": "./index.mjs"
+    },
+    "./search": "./src/search.js",
+    "./server": "./src/server.js",
+    "./storage": "./src/storage.js"
+  },
+  "bin": {
+    "ash-memory-search": "./bin/ash-memory-search",
+    "memory-search": "./bin/memory-search",
+    "memory-search-server": "./bin/memory-search-server",
+    "memory-search-setup": "./bin/memory-search-setup"
+  },
   "scripts": {
     "index": "node src/build-index.js",
-    "search": "node src/cli.js",
-    "server": "node src/server.js",
+    "search": "node bin/memory-search",
+    "server": "node bin/memory-search-server",
+    "setup": "node bin/memory-search-setup",
     "test": "node tests/unit-tests.js",
     "benchmark": "node tests/benchmark.js",
     "test:all": "node tests/run-all.js"
   },
-  "keywords": ["search", "memory", "semantic", "embeddings", "openclaw", "sqlite"],
+  "keywords": ["search", "memory", "semantic", "embeddings", "openclaw", "sqlite", "ai"],
   "author": "ashcommand",
   "license": "MIT",
   "dependencies": {

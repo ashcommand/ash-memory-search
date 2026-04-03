@@ -1,0 +1,134 @@
+#!/usr/bin/env node
+
+/**
+ * Setup script for Ash Memory Search
+ * Configures the skill for use with OpenClaw
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const HOME = process.env.HOME;
+const OPENCLAW_WORKSPACE = path.join(HOME, '.openclaw', 'workspace');
+const OPENCLAW_SKILLS = '/opt/homebrew/lib/node_modules/openclaw/skills';
+const SKILL_NAME = 'ash-memory-search';
+
+function log(message) {
+  console.log(`  ${message}`);
+}
+
+function success(message) {
+  console.log(`  ✅ ${message}`);
+}
+
+function warn(message) {
+  console.log(`  ⚠️  ${message}`);
+}
+
+function error(message) {
+  console.log(`  ❌ ${message}`);
+}
+
+async function main() {
+  console.log('\n🔧 Ash Memory Search Setup\n');
+  
+  // 1. Check Node.js version
+  log('Checking Node.js version...');
+  const nodeVersion = process.version;
+  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0], 10);
+  if (majorVersion < 18) {
+    error(`Node.js 18+ required. Found: ${nodeVersion}`);
+    process.exit(1);
+  }
+  success(`Node.js ${nodeVersion}`);
+  
+  // 2. Find workspace
+  log('Looking for OpenClaw workspace...');
+  let workspacePath = OPENCLAW_WORKSPACE;
+  
+  if (!fs.existsSync(workspacePath)) {
+    warn(`Default workspace not found: ${workspacePath}`);
+    // Try to find it elsewhere
+    const altPaths = [
+      path.join(HOME, 'openclaw', 'workspace'),
+      path.join(HOME, '.local', 'share', 'openclaw', 'workspace'),
+      process.cwd()
+    ];
+    
+    for (const altPath of altPaths) {
+      if (fs.existsSync(path.join(altPath, 'SOUL.md')) || 
+          fs.existsSync(path.join(altPath, 'memory'))) {
+        workspacePath = altPath;
+        success(`Found workspace at: ${workspacePath}`);
+        break;
+      }
+    }
+    
+    if (!fs.existsSync(workspacePath)) {
+      warn('Could not find OpenClaw workspace');
+      log('Will create workspace structure at default location');
+      fs.mkdirSync(path.join(OPENCLAW_WORKSPACE, 'memory'), { recursive: true });
+      workspacePath = OPENCLAW_WORKSPACE;
+    }
+  } else {
+    success(`Workspace: ${workspacePath}`);
+  }
+  
+  // 3. Build initial index
+  log('Building initial search index...');
+  try {
+    // Find the search module
+    let MemorySearch;
+    try {
+      MemorySearch = require('ash-memory-search').MemorySearch;
+    } catch (e) {
+      MemorySearch = require(path.join(__dirname, '..', 'src', 'search')).MemorySearch;
+    }
+    
+    const search = new MemorySearch({ workspacePath });
+    await search.init();
+    await search.loadOrBuildIndex();
+    const docCount = search.storage.getDocumentCount();
+    await search.close();
+    success(`Index built with ${docCount} documents`);
+  } catch (e) {
+    warn(`Could not build index: ${e.message}`);
+    log('You can build it later with: npm run index');
+  }
+  
+  // 4. Check for OpenClaw skills directory
+  log('Checking OpenClaw skills directory...');
+  if (fs.existsSync(OPENCLAW_SKILLS)) {
+    success(`Skills directory: ${OPENCLAW_SKILLS}`);
+    
+    // Check if already linked
+    const skillPath = path.join(OPENCLAW_SKILLS, SKILL_NAME);
+    if (fs.existsSync(skillPath)) {
+      success('Skill already linked in OpenClaw');
+    } else {
+      log('To link this skill globally, run:');
+      console.log(`\n    sudo ln -s "${path.resolve(__dirname, '..')}" "${skillPath}"\n`);
+    }
+  } else {
+    warn('OpenClaw skills directory not found');
+    log('You can still use the tool via CLI or npm scripts');
+  }
+  
+  // 5. Show usage
+  console.log('\n' + '='.repeat(50));
+  console.log('Setup complete! 🎉\n');
+  console.log('Usage:');
+  console.log('  npm run search           # Interactive search');
+  console.log('  npm run server           # Start API server');
+  console.log('  npm run index            # Rebuild index\n');
+  console.log('Or globally (if installed with -g):');
+  console.log('  memory-search "query"');
+  console.log('  memory-search-server\n');
+  console.log('='.repeat(50) + '\n');
+}
+
+main().catch(err => {
+  console.error('Setup failed:', err.message);
+  process.exit(1);
+});

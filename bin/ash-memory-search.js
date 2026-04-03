@@ -1,0 +1,155 @@
+#!/usr/bin/env node
+
+/**
+ * Ash Memory Search CLI
+ * Global CLI for searching memory files
+ * 
+ * Usage:
+ *   ash-memory-search "query string"
+ *   ash-memory-search index
+ *   ash-memory-search server
+ *   ash-memory-search setup
+ */
+
+const { MemorySearch } = require('../src/search');
+const { MemorySearchServer } = require('../src/server');
+const path = require('path');
+const fs = require('fs');
+
+const args = process.argv.slice(2);
+const command = args[0];
+
+function showHelp() {
+  console.log(`
+🔍 Ash Memory Search v${require('../package.json').version}
+
+Usage:
+  ash-memory-search <query>              Search memory files
+  ash-memory-search index                Build the search index
+  ash-memory-search server [port]        Start API server
+  ash-memory-search setup                Run interactive setup
+  ash-memory-search --help               Show this help
+
+Environment Variables:
+  MEMORY_SEARCH_WORKSPACE    Path to OpenClaw workspace (default: ~/.openclaw/workspace)
+  MEMORY_SEARCH_DB           Path to SQLite database
+  MEMORY_SEARCH_MODEL        Embedding model to use
+  MEMORY_SEARCH_THRESHOLD    Similarity threshold (default: 0.15)
+
+Examples:
+  ash-memory-search "gmail account"
+  ash-memory-search "what did I decide about auth"
+  ash-memory-search index
+  ash-memory-search server 3777
+`);
+}
+
+async function main() {
+  // Show help
+  if (!command || command === '--help' || command === '-h') {
+    showHelp();
+    process.exit(0);
+  }
+
+  const workspacePath = process.env.MEMORY_SEARCH_WORKSPACE || 
+    path.join(process.env.HOME, '.openclaw', 'workspace');
+
+  // Setup command
+  if (command === 'setup') {
+    const setupPath = path.join(__dirname, '..', 'setup.js');
+    if (fs.existsSync(setupPath)) {
+      require(setupPath);
+    } else {
+      console.error('Setup script not found');
+      process.exit(1);
+    }
+    return;
+  }
+
+  // Index command
+  if (command === 'index') {
+    console.log('🔧 Building search index...\n');
+    
+    const search = new MemorySearch({ workspacePath });
+    
+    try {
+      await search.buildIndex();
+      const docCount = search.storage.getDocumentCount();
+      console.log(`\n✅ Index built successfully with ${docCount} documents`);
+      await search.close();
+      process.exit(0);
+    } catch (error) {
+      console.error('\n❌ Error building index:', error.message);
+      process.exit(1);
+    }
+  }
+
+  // Server command
+  if (command === 'server') {
+    const port = parseInt(args[1], 10) || 3777;
+    
+    console.log('🚀 Starting Memory Search API server...\n');
+    
+    const server = new MemorySearchServer({ port });
+    
+    try {
+      await server.start();
+      console.log(`\nServer ready! Try:`);
+      console.log(`  curl -X POST http://localhost:${port}/search \\\n    -H "Content-Type: application/json" \\\n    -d '{"query":"your search"}'`);
+    } catch (error) {
+      console.error('\n❌ Error starting server:', error.message);
+      process.exit(1);
+    }
+    
+    // Graceful shutdown
+    process.on('SIGINT', async () => {
+      console.log('\n\nShutting down server...');
+      await server.stop();
+      process.exit(0);
+    });
+    
+    return;
+  }
+
+  // Search command (default)
+  const query = args.join(' ');
+  
+  if (query.length < 2) {
+    console.error('❌ Query too short. Please provide a more specific search term.');
+    process.exit(1);
+  }
+
+  console.log(`🔍 Searching: "${query}"\n`);
+  
+  const search = new MemorySearch({ workspacePath });
+  
+  try {
+    await search.loadOrBuildIndex();
+    const results = await search.query(query, 5);
+    
+    if (results.length === 0) {
+      console.log('No results found. Try:');
+      console.log('  - Broadening your search terms');
+      console.log('  - Running: ash-memory-search index');
+      console.log('  - Checking if memory files exist in your workspace');
+    } else {
+      await search.renderResults(results);
+    }
+    
+    await search.close();
+    process.exit(0);
+  } catch (error) {
+    console.error('\n❌ Search error:', error.message);
+    
+    if (error.message.includes('index') || error.message.includes('database')) {
+      console.log('\nTip: Run "ash-memory-search index" to build the search index first.');
+    }
+    
+    process.exit(1);
+  }
+}
+
+main().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});
