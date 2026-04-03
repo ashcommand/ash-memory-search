@@ -4,6 +4,8 @@ AI-powered semantic search engine for memory files.
 
 [![NPM version](https://img.shields.io/npm/v/ash-memory-search)](https://www.npmjs.com/package/ash-memory-search)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+[![Downloads](https://img.shields.io/npm/dm/ash-memory-search)](https://www.npmjs.com/package/ash-memory-search)
 
 ## What It Does
 

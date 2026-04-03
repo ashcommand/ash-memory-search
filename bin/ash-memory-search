@@ -11,9 +11,22 @@
  *   ash-memory-search setup
  */
 
-const { MemorySearch } = require('../src/search');
-const { MemorySearchServer } = require('../src/server');
 const path = require('path');
+
+// Support both local and installed-as-package usage
+let MemorySearch, MemorySearchServer;
+
+try {
+  // When installed as npm package
+  const pkg = require('ash-memory-search');
+  MemorySearch = pkg.MemorySearch;
+  MemorySearchServer = pkg.MemorySearchServer;
+} catch (e) {
+  // When running locally
+  MemorySearch = require(path.join(__dirname, '..', 'src', 'search')).MemorySearch;
+  MemorySearchServer = require(path.join(__dirname, '..', 'src', 'server')).MemorySearchServer;
+}
+
 const fs = require('fs');
 
 const args = process.argv.slice(2);

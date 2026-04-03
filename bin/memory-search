@@ -1,113 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * CLI for Memory Search
- * Interactive search interface
+ * Legacy CLI alias for Ash Memory Search
+ * Deprecated: Use 'ash-memory-search' instead
  */
 
-const path = require('path');
-const fs = require('fs');
+console.log('⚠️  DEPRECATED: Use "ash-memory-search" instead of "memory-search"');
+console.log('');
 
-// Find the search module - works both when installed globally and locally
-let MemorySearch;
-try {
-  // When installed as npm package
-  MemorySearch = require('ash-memory-search').MemorySearch;
-} catch (e) {
-  // When running locally
-  MemorySearch = require(path.join(__dirname, '..', 'src', 'search')).MemorySearch;
-}
-
-const readline = require('readline');
-const { stdin: input, stdout: output } = require('process');
-
-async function main() {
-  // Parse args for non-interactive mode
-  const args = process.argv.slice(2);
-  const queryIndex = args.findIndex(arg => !arg.startsWith('--'));
-  const query = queryIndex >= 0 ? args.slice(queryIndex).join(' ') : null;
-  
-  // Parse options
-  const options = {
-    limit: 5,
-    threshold: 0.15
-  };
-  
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--limit' && args[i + 1]) {
-      options.limit = parseInt(args[i + 1], 10);
-    }
-    if (args[i] === '--workspace' && args[i + 1]) {
-      options.workspacePath = args[i + 1];
-    }
-  }
-  
-  const search = new MemorySearch(options);
-  
-  if (query) {
-    // Non-interactive mode
-    try {
-      await search.init();
-      await search.loadOrBuildIndex();
-      const results = await search.query(query, options.limit);
-      await search.renderResults(results);
-      await search.close();
-      process.exit(0);
-    } catch (error) {
-      console.error('Search error:', error.message);
-      process.exit(1);
-    }
-  }
-  
-  // Interactive mode
-  console.log('\n🔍 Ash Memory Search');
-  console.log('Type your query and press Enter');
-  console.log('Type "exit" or press Ctrl+C to quit\n');
-  
-  const rl = readline.createInterface({ input, output });
-  
-  const askQuestion = () => {
-    return new Promise((resolve) => {
-      rl.question('Query: ', resolve);
-    });
-  };
-  
-  try {
-    // Build/load index on startup
-    console.log('Initializing...');
-    await search.init();
-    await search.loadOrBuildIndex();
-    
-    while (true) {
-      const query = await askQuestion();
-      
-      if (!query || query.toLowerCase() === 'exit') {
-        console.log('Goodbye!');
-        rl.close();
-        await search.close();
-        break;
-      }
-      
-      if (query.trim().length < 3) {
-        console.log('Query too short. Try something more specific.\n');
-        continue;
-      }
-      
-      try {
-        const results = await search.query(query, options.limit);
-        await search.renderResults(results);
-      } catch (error) {
-        console.error('Search error:', error.message);
-      }
-      
-      console.log('\n' + '='.repeat(60) + '\n');
-    }
-  } catch (error) {
-    console.error('Fatal error:', error);
-    rl.close();
-    await search.close();
-    process.exit(1);
-  }
-}
-
-main().catch(console.error);
+// Delegate to main CLI
+require('./ash-memory-search');

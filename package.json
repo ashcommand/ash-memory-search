@@ -1,6 +1,6 @@
 {
   "name": "ash-memory-search",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "description": "AI-powered semantic search engine for memory files",
   "main": "index.js",
   "exports": {
@@ -14,18 +14,17 @@
   },
   "bin": {
     "ash-memory-search": "./bin/ash-memory-search",
-    "memory-search": "./bin/memory-search",
-    "memory-search-server": "./bin/memory-search-server",
-    "memory-search-setup": "./bin/memory-search-setup"
+    "memory-search": "./bin/memory-search"
   },
   "scripts": {
-    "index": "node src/build-index.js",
-    "search": "node bin/memory-search",
-    "server": "node bin/memory-search-server",
-    "setup": "node bin/memory-search-setup",
+    "index": "node bin/ash-memory-search index",
+    "search": "node bin/ash-memory-search",
+    "server": "node bin/ash-memory-search server",
+    "setup": "node setup.js",
     "test": "node tests/unit-tests.js",
     "benchmark": "node tests/benchmark.js",
-    "test:all": "node tests/run-all.js"
+    "test:all": "node tests/run-all.js",
+    "postinstall": "node -e \"console.log('Run: npm run setup to configure ash-memory-search')\""
   },
   "keywords": ["search", "memory", "semantic", "embeddings", "openclaw", "sqlite", "ai"],
   "author": "ashcommand",
@@ -50,5 +49,16 @@
   "bugs": {
     "url": "https://github.com/ashcommand/ash-memory-search/issues"
   },
-  "homepage": "https://github.com/ashcommand/ash-memory-search#readme"
+  "homepage": "https://github.com/ashcommand/ash-memory-search#readme",
+  "files": [
+    "index.js",
+    "index.mjs",
+    "setup.js",
+    "SKILL.md",
+    "README.md",
+    "LICENSE",
+    "src/",
+    "bin/",
+    "docs/"
+  ]
 }

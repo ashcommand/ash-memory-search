@@ -1,84 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Memory Search Server CLI
- * Starts the HTTP API server
+ * Legacy CLI alias for Ash Memory Search Server
+ * Deprecated: Use 'ash-memory-search server' instead
  */
 
-const path = require('path');
+console.log('⚠️  DEPRECATED: Use "ash-memory-search server" instead of "memory-search-server"');
+console.log('');
 
-// Find the server module - works both when installed globally and locally
-let MemorySearchServer;
-try {
-  // When installed as npm package
-  MemorySearchServer = require('ash-memory-search').MemorySearchServer;
-} catch (e) {
-  // When running locally
-  MemorySearchServer = require(path.join(__dirname, '..', 'src', 'server')).MemorySearchServer;
-}
-
-function showHelp() {
-  console.log(`
-Ash Memory Search Server
-
-Usage:
-  memory-search-server [options]
-
-Options:
-  --port <port>     Port to listen on (default: 3777)
-  --workspace <path> Path to OpenClaw workspace
-  -h, --help        Show this help
-
-Examples:
-  memory-search-server
-  memory-search-server --port 8080
-  memory-search-server --workspace /custom/path
-`);
-}
-
-function parseArgs() {
-  const args = process.argv.slice(2);
-  const options = { port: 3777 };
-  
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '-h' || args[i] === '--help') {
-      showHelp();
-      process.exit(0);
-    }
-    if (args[i] === '--port' && args[i + 1]) {
-      options.port = parseInt(args[i + 1], 10);
-    }
-    if (args[i] === '--workspace' && args[i + 1]) {
-      options.workspacePath = args[i + 1];
-    }
-  }
-  
-  return options;
-}
-
-async function main() {
-  const options = parseArgs();
-  
-  console.log('\n🚀 Starting Memory Search Server...\n');
-  
-  const server = new MemorySearchServer(options);
-  
-  try {
-    await server.start();
-    console.log(`\nServer running at http://localhost:${options.port}`);
-    console.log('Press Ctrl+C to stop\n');
-  } catch (error) {
-    console.error('Failed to start server:', error.message);
-    process.exit(1);
-  }
-  
-  // Graceful shutdown
-  process.on('SIGINT', async () => {
-    console.log('\n\nShutting down...');
-    await server.stop();
-    console.log('Server stopped');
-    process.exit(0);
-  });
-}
-
-main().catch(console.error);
+// Delegate to main CLI with server command
+process.argv.splice(2, 0, 'server');
+require('./ash-memory-search');
